@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Env / secrets
+.env
+*.pem
+*.key
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.next/
+
+# AI/ML
+*.pkl
+*.joblib
+*.onnx
+*.h5
+ai-engine/data_prep/raw_data/
+ai-engine/models/checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
