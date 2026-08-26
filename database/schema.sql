@@ -1,235 +1,279 @@
--- ============================================================
--- Air-Gapped Predictive Copilot for Secure MPLS Operations
--- Phase 2: Database & Data Layer — MySQL Schema
--- ============================================================
--- Notes:
---  * InnoDB used throughout for FK support and transactions.
---  * utf8mb4 for full Unicode support.
---  * JSON columns used where flexible structured data is expected
---    (contributing factors, audit details) — MySQL 5.7.8+/8.0 required.
---  * Timestamps default to CURRENT_TIMESTAMP; adjust for your DB server's
---    timezone configuration.
--- ============================================================
+-- MySQL dump 10.13  Distrib 8.0.46, for Win64 (x86_64)
+--
+-- Host: 127.0.0.1    Database: mpls_copilot
+-- ------------------------------------------------------
+-- Server version	8.0.46
 
-CREATE DATABASE IF NOT EXISTS mpls_copilot
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE mpls_copilot;
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!50503 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
-SET FOREIGN_KEY_CHECKS = 0;
+--
+-- Table structure for table `alerts`
+--
 
--- ------------------------------------------------------------
--- 1. Roles
--- ------------------------------------------------------------
-CREATE TABLE roles (
-  role_id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  role_name     VARCHAR(50)  NOT NULL UNIQUE,   -- 'admin', 'network_engineer', 'viewer'
-  description   VARCHAR(255),
-  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+DROP TABLE IF EXISTS `alerts`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `alerts` (
+  `alert_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `device_id` int unsigned NOT NULL,
+  `alert_type` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `severity` enum('info','warning','critical') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'warning',
+  `message` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('open','acknowledged','closed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
+  `triggered_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `resolved_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`alert_id`),
+  KEY `idx_alerts_device_status` (`device_id`,`status`),
+  KEY `idx_alerts_severity` (`severity`),
+  CONSTRAINT `fk_alerts_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 2. Users
--- ------------------------------------------------------------
-CREATE TABLE users (
-  user_id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  username       VARCHAR(64)  NOT NULL UNIQUE,
-  password_hash  VARCHAR(255) NOT NULL,          -- bcrypt/argon2 hash, never plaintext
-  full_name      VARCHAR(120) NOT NULL,
-  email          VARCHAR(120),
-  role_id        INT UNSIGNED NOT NULL,
-  is_active      TINYINT(1)   NOT NULL DEFAULT 1,
-  created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  last_login_at  TIMESTAMP    NULL,
-  CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles(role_id)
-    ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE=InnoDB;
+--
+-- Table structure for table `audit_log`
+--
 
-CREATE INDEX idx_users_role ON users(role_id);
+DROP TABLE IF EXISTS `audit_log`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `audit_log` (
+  `audit_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int unsigned DEFAULT NULL,
+  `entity_type` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `entity_id` bigint unsigned NOT NULL,
+  `action` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `details` json DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`audit_id`),
+  KEY `fk_audit_user` (`user_id`),
+  KEY `idx_audit_entity` (`entity_type`,`entity_id`),
+  KEY `idx_audit_created` (`created_at`),
+  CONSTRAINT `fk_audit_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 3. Devices
--- ------------------------------------------------------------
-CREATE TABLE devices (
-  device_id      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  hostname       VARCHAR(120) NOT NULL UNIQUE,
-  vendor         VARCHAR(60)  NOT NULL,          -- 'Cisco', 'Juniper', ...
-  model          VARCHAR(80),
-  mgmt_ip        VARCHAR(45)  NOT NULL,          -- supports IPv4/IPv6
-  device_role    VARCHAR(40),                    -- 'PE', 'P', 'CE', 'switch'
-  site           VARCHAR(120),
-  is_active      TINYINT(1)   NOT NULL DEFAULT 1,
-  created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+--
+-- Table structure for table `devices`
+--
 
-CREATE INDEX idx_devices_vendor ON devices(vendor);
-CREATE INDEX idx_devices_active ON devices(is_active);
+DROP TABLE IF EXISTS `devices`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `devices` (
+  `device_id` int unsigned NOT NULL AUTO_INCREMENT,
+  `hostname` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `vendor` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `model` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `mgmt_ip` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `device_role` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `site` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`device_id`),
+  UNIQUE KEY `hostname` (`hostname`),
+  KEY `idx_devices_vendor` (`vendor`),
+  KEY `idx_devices_active` (`is_active`)
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 4. Telemetry (high-volume time-series metrics)
--- ------------------------------------------------------------
-CREATE TABLE telemetry (
-  telemetry_id   BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  device_id      INT UNSIGNED NOT NULL,
-  metric_type    VARCHAR(40)  NOT NULL,          -- 'cpu', 'memory', 'latency', 'packet_loss', ...
-  metric_value   DECIMAL(12,4) NOT NULL,
-  unit           VARCHAR(20),                    -- '%', 'ms', 'Mbps', ...
-  collected_at   TIMESTAMP    NOT NULL,
-  CONSTRAINT fk_telemetry_device FOREIGN KEY (device_id) REFERENCES devices(device_id)
-    ON UPDATE CASCADE ON DELETE CASCADE
-) ENGINE=InnoDB;
+--
+-- Table structure for table `engineer_actions`
+--
 
-CREATE INDEX idx_telemetry_device_time ON telemetry(device_id, collected_at);
-CREATE INDEX idx_telemetry_metric_type ON telemetry(metric_type);
+DROP TABLE IF EXISTS `engineer_actions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `engineer_actions` (
+  `action_id` int unsigned NOT NULL AUTO_INCREMENT,
+  `prediction_id` bigint unsigned NOT NULL,
+  `recommendation_id` int unsigned DEFAULT NULL,
+  `user_id` int unsigned NOT NULL,
+  `action_taken` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `action_notes` text COLLATE utf8mb4_unicode_ci,
+  `action_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`action_id`),
+  KEY `fk_actions_recommendation` (`recommendation_id`),
+  KEY `idx_actions_prediction` (`prediction_id`),
+  KEY `idx_actions_user` (`user_id`),
+  CONSTRAINT `fk_actions_prediction` FOREIGN KEY (`prediction_id`) REFERENCES `predictions` (`prediction_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_actions_recommendation` FOREIGN KEY (`recommendation_id`) REFERENCES `recommendations` (`recommendation_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_actions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 5. Alerts
--- ------------------------------------------------------------
-CREATE TABLE alerts (
-  alert_id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  device_id      INT UNSIGNED NOT NULL,
-  alert_type     VARCHAR(60)  NOT NULL,          -- 'link_down', 'high_cpu', 'anomaly', ...
-  severity       ENUM('info','warning','critical') NOT NULL DEFAULT 'warning',
-  message        VARCHAR(500) NOT NULL,
-  status         ENUM('open','acknowledged','closed') NOT NULL DEFAULT 'open',
-  triggered_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  resolved_at    TIMESTAMP    NULL,
-  CONSTRAINT fk_alerts_device FOREIGN KEY (device_id) REFERENCES devices(device_id)
-    ON UPDATE CASCADE ON DELETE CASCADE
-) ENGINE=InnoDB;
+--
+-- Table structure for table `incidents`
+--
 
-CREATE INDEX idx_alerts_device_status ON alerts(device_id, status);
-CREATE INDEX idx_alerts_severity ON alerts(severity);
+DROP TABLE IF EXISTS `incidents`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `incidents` (
+  `incident_id` int unsigned NOT NULL AUTO_INCREMENT,
+  `device_id` int unsigned NOT NULL,
+  `alert_id` bigint unsigned DEFAULT NULL,
+  `title` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('open','in_progress','resolved','closed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
+  `opened_by` int unsigned DEFAULT NULL,
+  `opened_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `closed_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`incident_id`),
+  KEY `fk_incidents_alert` (`alert_id`),
+  KEY `fk_incidents_opened_by` (`opened_by`),
+  KEY `idx_incidents_device_status` (`device_id`,`status`),
+  CONSTRAINT `fk_incidents_alert` FOREIGN KEY (`alert_id`) REFERENCES `alerts` (`alert_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_incidents_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_incidents_opened_by` FOREIGN KEY (`opened_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 6. Incidents
--- ------------------------------------------------------------
-CREATE TABLE incidents (
-  incident_id    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  device_id      INT UNSIGNED NOT NULL,
-  alert_id       BIGINT UNSIGNED NULL,
-  title          VARCHAR(200) NOT NULL,
-  description    TEXT,
-  status         ENUM('open','in_progress','resolved','closed') NOT NULL DEFAULT 'open',
-  opened_by      INT UNSIGNED NULL,
-  opened_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  closed_at      TIMESTAMP    NULL,
-  CONSTRAINT fk_incidents_device FOREIGN KEY (device_id) REFERENCES devices(device_id)
-    ON UPDATE CASCADE ON DELETE CASCADE,
-  CONSTRAINT fk_incidents_alert FOREIGN KEY (alert_id) REFERENCES alerts(alert_id)
-    ON UPDATE CASCADE ON DELETE SET NULL,
-  CONSTRAINT fk_incidents_opened_by FOREIGN KEY (opened_by) REFERENCES users(user_id)
-    ON UPDATE CASCADE ON DELETE SET NULL
-) ENGINE=InnoDB;
+--
+-- Table structure for table `outcomes`
+--
 
-CREATE INDEX idx_incidents_device_status ON incidents(device_id, status);
+DROP TABLE IF EXISTS `outcomes`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `outcomes` (
+  `outcome_id` int unsigned NOT NULL AUTO_INCREMENT,
+  `prediction_id` bigint unsigned NOT NULL,
+  `actual_result` enum('failure_occurred','no_failure','false_positive','unknown') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `outcome_notes` text COLLATE utf8mb4_unicode_ci,
+  `recorded_by` int unsigned DEFAULT NULL,
+  `recorded_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`outcome_id`),
+  UNIQUE KEY `uq_outcomes_prediction` (`prediction_id`),
+  KEY `fk_outcomes_user` (`recorded_by`),
+  KEY `idx_outcomes_result` (`actual_result`),
+  CONSTRAINT `fk_outcomes_prediction` FOREIGN KEY (`prediction_id`) REFERENCES `predictions` (`prediction_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_outcomes_user` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 7. Predictions
--- ------------------------------------------------------------
-CREATE TABLE predictions (
-  prediction_id       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  device_id           INT UNSIGNED NOT NULL,
-  incident_id         INT UNSIGNED NULL,
-  model_version       VARCHAR(40)  NOT NULL,
-  risk_score          DECIMAL(5,4) NOT NULL,      -- 0.0000–1.0000
-  risk_level          ENUM('low','medium','high','critical') NOT NULL,
-  prediction_horizon  VARCHAR(40),                 -- e.g. 'next_24h'
-  contributing_factors JSON,                       -- explainability payload (feature: weight)
-  predicted_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_predictions_device FOREIGN KEY (device_id) REFERENCES devices(device_id)
-    ON UPDATE CASCADE ON DELETE CASCADE,
-  CONSTRAINT fk_predictions_incident FOREIGN KEY (incident_id) REFERENCES incidents(incident_id)
-    ON UPDATE CASCADE ON DELETE SET NULL
-) ENGINE=InnoDB;
+--
+-- Table structure for table `predictions`
+--
 
-CREATE INDEX idx_predictions_device_time ON predictions(device_id, predicted_at);
-CREATE INDEX idx_predictions_risk_level ON predictions(risk_level);
+DROP TABLE IF EXISTS `predictions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `predictions` (
+  `prediction_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `device_id` int unsigned NOT NULL,
+  `incident_id` int unsigned DEFAULT NULL,
+  `model_version` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `risk_score` decimal(5,4) NOT NULL,
+  `risk_level` enum('low','medium','high','critical') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `prediction_horizon` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `contributing_factors` json DEFAULT NULL,
+  `predicted_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`prediction_id`),
+  KEY `fk_predictions_incident` (`incident_id`),
+  KEY `idx_predictions_device_time` (`device_id`,`predicted_at`),
+  KEY `idx_predictions_risk_level` (`risk_level`),
+  CONSTRAINT `fk_predictions_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_predictions_incident` FOREIGN KEY (`incident_id`) REFERENCES `incidents` (`incident_id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 8. Recommendations
--- ------------------------------------------------------------
-CREATE TABLE recommendations (
-  recommendation_id   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  prediction_id       BIGINT UNSIGNED NOT NULL,
-  recommendation_text VARCHAR(1000) NOT NULL,
-  priority            ENUM('low','medium','high') NOT NULL DEFAULT 'medium',
-  created_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_recommendations_prediction FOREIGN KEY (prediction_id) REFERENCES predictions(prediction_id)
-    ON UPDATE CASCADE ON DELETE CASCADE
-) ENGINE=InnoDB;
+--
+-- Table structure for table `recommendations`
+--
 
-CREATE INDEX idx_recommendations_prediction ON recommendations(prediction_id);
+DROP TABLE IF EXISTS `recommendations`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `recommendations` (
+  `recommendation_id` int unsigned NOT NULL AUTO_INCREMENT,
+  `prediction_id` bigint unsigned NOT NULL,
+  `recommendation_text` varchar(1000) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `priority` enum('low','medium','high') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'medium',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`recommendation_id`),
+  KEY `idx_recommendations_prediction` (`prediction_id`),
+  CONSTRAINT `fk_recommendations_prediction` FOREIGN KEY (`prediction_id`) REFERENCES `predictions` (`prediction_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 9. Engineer Actions
--- ------------------------------------------------------------
-CREATE TABLE engineer_actions (
-  action_id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  prediction_id      BIGINT UNSIGNED NOT NULL,
-  recommendation_id  INT UNSIGNED NULL,
-  user_id            INT UNSIGNED NOT NULL,
-  action_taken        VARCHAR(500) NOT NULL,
-  action_notes       TEXT,
-  action_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_actions_prediction FOREIGN KEY (prediction_id) REFERENCES predictions(prediction_id)
-    ON UPDATE CASCADE ON DELETE CASCADE,
-  CONSTRAINT fk_actions_recommendation FOREIGN KEY (recommendation_id) REFERENCES recommendations(recommendation_id)
-    ON UPDATE CASCADE ON DELETE SET NULL,
-  CONSTRAINT fk_actions_user FOREIGN KEY (user_id) REFERENCES users(user_id)
-    ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE=InnoDB;
+--
+-- Table structure for table `roles`
+--
 
-CREATE INDEX idx_actions_prediction ON engineer_actions(prediction_id);
-CREATE INDEX idx_actions_user ON engineer_actions(user_id);
+DROP TABLE IF EXISTS `roles`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `roles` (
+  `role_id` int unsigned NOT NULL AUTO_INCREMENT,
+  `role_name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`role_id`),
+  UNIQUE KEY `role_name` (`role_name`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 10. Outcomes (prediction vs. reality — feeds the feedback loop)
--- ------------------------------------------------------------
-CREATE TABLE outcomes (
-  outcome_id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  prediction_id    BIGINT UNSIGNED NOT NULL,
-  actual_result    ENUM('failure_occurred','no_failure','false_positive','unknown') NOT NULL,
-  outcome_notes    TEXT,
-  recorded_by      INT UNSIGNED NULL,
-  recorded_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_outcomes_prediction FOREIGN KEY (prediction_id) REFERENCES predictions(prediction_id)
-    ON UPDATE CASCADE ON DELETE CASCADE,
-  CONSTRAINT fk_outcomes_user FOREIGN KEY (recorded_by) REFERENCES users(user_id)
-    ON UPDATE CASCADE ON DELETE SET NULL
-) ENGINE=InnoDB;
+--
+-- Table structure for table `telemetry`
+--
 
-CREATE UNIQUE INDEX uq_outcomes_prediction ON outcomes(prediction_id); -- one outcome per prediction
-CREATE INDEX idx_outcomes_result ON outcomes(actual_result);
+DROP TABLE IF EXISTS `telemetry`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `telemetry` (
+  `telemetry_id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `device_id` int unsigned NOT NULL,
+  `metric_type` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `metric_value` decimal(12,4) NOT NULL,
+  `unit` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `collected_at` timestamp NOT NULL,
+  PRIMARY KEY (`telemetry_id`),
+  KEY `idx_telemetry_device_time` (`device_id`,`collected_at`),
+  KEY `idx_telemetry_metric_type` (`metric_type`),
+  CONSTRAINT `fk_telemetry_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
--- ------------------------------------------------------------
--- 11. Audit Log (append-only; covers all sensitive actions)
--- ------------------------------------------------------------
-CREATE TABLE audit_log (
-  audit_id      BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  user_id       INT UNSIGNED NULL,               -- NULL = system-generated event
-  entity_type   VARCHAR(60)  NOT NULL,            -- 'prediction', 'user', 'device', 'alert', ...
-  entity_id     BIGINT UNSIGNED NOT NULL,
-  action        VARCHAR(60)  NOT NULL,            -- 'create', 'update', 'delete', 'login', 'view', ...
-  details       JSON,                             -- before/after values, request metadata
-  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(user_id)
-    ON UPDATE CASCADE ON DELETE SET NULL
-) ENGINE=InnoDB;
+--
+-- Table structure for table `users`
+--
 
-CREATE INDEX idx_audit_entity ON audit_log(entity_type, entity_id);
-CREATE INDEX idx_audit_created ON audit_log(created_at);
+DROP TABLE IF EXISTS `users`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `users` (
+  `user_id` int unsigned NOT NULL AUTO_INCREMENT,
+  `username` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `full_name` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `role_id` int unsigned NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_login_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`user_id`),
+  UNIQUE KEY `username` (`username`),
+  KEY `idx_users_role` (`role_id`),
+  CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
-SET FOREIGN_KEY_CHECKS = 1;
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- ------------------------------------------------------------
--- Seed data: default roles
--- ------------------------------------------------------------
-INSERT INTO roles (role_name, description) VALUES
-  ('admin', 'System owner / configuration authority'),
-  ('network_engineer', 'Day-to-day operator responding to alerts'),
-  ('viewer', 'Read-only stakeholder');
-
--- Example admin user (replace password_hash with a real bcrypt/argon2 hash before use)
-INSERT INTO users (username, password_hash, full_name, role_id)
-VALUES ('admin', '$2b$12$REPLACE_WITH_REAL_HASH', 'System Administrator',
-        (SELECT role_id FROM roles WHERE role_name = 'admin'));
+-- Dump completed on 2026-08-26 19:22:29
