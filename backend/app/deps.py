@@ -18,21 +18,29 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     payload = decode_access_token(token)
     if payload is None:
         raise credentials_error
 
     username = payload.get("sub")
     user = db.query(User).filter(User.username == username).first()
+
     if user is None or not user.is_active:
         raise credentials_error
+
     return user
 
 
 def require_role(*allowed_roles: str):
     """
-    Usage: @router.post(..., dependencies=[Depends(require_role("admin"))])
-    or as a param: current_user: User = Depends(require_role("admin", "network_engineer"))
+    Usage:
+    @router.post(..., dependencies=[Depends(require_role("admin"))])
+
+    or:
+    current_user: User = Depends(
+        require_role("admin", "network_engineer")
+    )
     """
 
     def checker(current_user: User = Depends(get_current_user)) -> User:
