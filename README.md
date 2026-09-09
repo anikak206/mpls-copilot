@@ -79,7 +79,7 @@ Then have your teammate `git clone` the same URL rather than starting a separate
 
 - [x] Phase 1 — Requirements & Architecture
 - [x] Phase 2 — Database & Data Layer
-- [x] Phase 3 — Backend & APIs (scaffold in this repo, endpoints in progress)
+- [x] Phase 3 — Backend & APIs 
 - [ ] Phase 4 — Data Preparation
 - [ ] Phase 5 — AI/ML Engine
 - [ ] Phase 6 — Risk & Explainability
