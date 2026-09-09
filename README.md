@@ -45,7 +45,7 @@ uvicorn app.main:app --reload
 
 API docs available at `http://localhost:8000/docs` once running.
 
-## Git Workflow (2 people, faculty wants execution visible on GitHub)
+## Git Workflow 
 
 1. **`main`** is always deployable/demo-ready. Never commit directly to it.
 2. Create a branch per task: `feature/<phase>-<short-description>`, e.g.
@@ -79,7 +79,7 @@ Then have your teammate `git clone` the same URL rather than starting a separate
 
 - [x] Phase 1 — Requirements & Architecture
 - [x] Phase 2 — Database & Data Layer
-- [ ] Phase 3 — Backend & APIs (scaffold in this repo, endpoints in progress)
+- [x] Phase 3 — Backend & APIs (scaffold in this repo, endpoints in progress)
 - [ ] Phase 4 — Data Preparation
 - [ ] Phase 5 — AI/ML Engine
 - [ ] Phase 6 — Risk & Explainability
