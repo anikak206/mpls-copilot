@@ -80,10 +80,10 @@ Then have your teammate `git clone` the same URL rather than starting a separate
 - [x] Phase 1 — Requirements & Architecture
 - [x] Phase 2 — Database & Data Layer
 - [x] Phase 3 — Backend & APIs 
-- [ ] Phase 4 — Data Preparation
-- [ ] Phase 5 — AI/ML Engine
+- [x] Phase 4 — Data Preparation
+- [x] Phase 5 — AI/ML Engine
 - [ ] Phase 6 — Risk & Explainability
 - [ ] Phase 7 — Recommendation & Feedback
-- [ ] Phase 8 — Dashboard
-- [ ] Phase 9 — Integration & Testing
+- [x] Phase 8 — Dashboard
+- [x] Phase 9 — Integration & Testing
 - [ ] Phase 10 — Documentation & Patent Study
