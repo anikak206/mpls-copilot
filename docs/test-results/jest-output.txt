@@ -1,0 +1,6 @@
+  ✓ default telemetry features are valid (2 ms)
+  ✓ out-of-range and missing telemetry values are rejected (1 ms)
+  ✓ device validation catches bad hostname and IP
+  ✓ email pattern (1 ms)
+Test Suites: 1 passed, 1 total
+Tests:       4 passed, 4 total

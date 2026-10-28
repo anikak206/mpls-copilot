@@ -1,0 +1,3 @@
+Compiled successfully.
+File sizes after gzip:
+BUILD EXIT 0
