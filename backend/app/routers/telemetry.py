@@ -1,95 +1,64 @@
-"""Telemetry CRUD. POST is the ingestion endpoint; GET /devices/{id}/telemetry
-(in devices.py) is the feed consumed by the AI module."""
-
+from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.audit import write_audit
-from app.core.database import get_db
-from app.deps import get_current_user, require_role
-from app.models import Device, Telemetry
-from app.schemas import TelemetryCreate, TelemetryOut, TelemetryUpdate
+from app.database import get_db
+from app.models import Alert, Telemetry, User
+from app.schemas import TelemetryIn
+from app.security import ALL_ROLES, OPERATORS, get_accessible_device, require_roles, scope_to_assigned
+from app.serializers import alert_out, telemetry_out
+from app.utils import PageParams, log_audit, paginate
 
-router = APIRouter(prefix="/telemetry", tags=["telemetry"])
-
-
-def _get_telemetry_or_404(db: Session, telemetry_id: int) -> Telemetry:
-    row = db.query(Telemetry).filter(Telemetry.telemetry_id == telemetry_id).first()
-    if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Telemetry record not found")
-    return row
+router = APIRouter(prefix="/api/telemetry", tags=["Telemetry"])
 
 
-@router.get("", response_model=list[TelemetryOut], summary="List telemetry records")
-def list_telemetry(
-    device_id: Optional[int] = None,
-    metric_type: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    _user=Depends(get_current_user),
-):
-    q = db.query(Telemetry)
-    if device_id is not None:
-        q = q.filter(Telemetry.device_id == device_id)
-    if metric_type:
-        q = q.filter(Telemetry.metric_type == metric_type)
-    return q.order_by(Telemetry.collected_at.desc()).offset(skip).limit(limit).all()
+@router.get("")
+def list_telemetry(device_id: Optional[int] = None, source: Optional[str] = None,
+                   date_from: Optional[datetime] = None, date_to: Optional[datetime] = None,
+                   min_loss: Optional[float] = None, params: PageParams = Depends(),
+                   db: Session = Depends(get_db), user: User = Depends(require_roles(*ALL_ROLES))):
+    stmt = scope_to_assigned(select(Telemetry).order_by(Telemetry.recorded_at.desc(), Telemetry.telemetry_id.desc()),
+                             user, Telemetry.device_id)
+    if device_id:
+        stmt = stmt.where(Telemetry.device_id == device_id)
+    if source:
+        stmt = stmt.where(Telemetry.source == source)
+    if date_from:
+        stmt = stmt.where(Telemetry.recorded_at >= date_from)
+    if date_to:
+        stmt = stmt.where(Telemetry.recorded_at <= date_to)
+    if min_loss is not None:
+        stmt = stmt.where(Telemetry.packet_loss_pct >= min_loss)
+    return paginate(db, stmt, params, telemetry_out)
 
 
-@router.get("/{telemetry_id}", response_model=TelemetryOut, summary="Get one telemetry record")
-def get_telemetry(telemetry_id: int, db: Session = Depends(get_db), _user=Depends(get_current_user)):
-    return _get_telemetry_or_404(db, telemetry_id)
-
-
-@router.post("", response_model=TelemetryOut, status_code=status.HTTP_201_CREATED,
-             summary="Ingest a telemetry record")
-def create_telemetry(
-    payload: TelemetryCreate,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin", "network_engineer")),
-):
-    if not db.query(Device).filter(Device.device_id == payload.device_id).first():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
-
-    row = Telemetry(**payload.model_dump())
-    db.add(row)
+@router.post("", status_code=201)
+def create_telemetry(body: TelemetryIn, request: Request, db: Session = Depends(get_db),
+                     user: User = Depends(require_roles(*OPERATORS))):
+    get_accessible_device(db, user, body.device_id)
+    data = body.model_dump(exclude_none=True)
+    sample = Telemetry(**data, source="manual", recorded_by=user.user_id)
+    db.add(sample)
     db.flush()
-    write_audit(db, current_user.user_id, "telemetry", row.telemetry_id, "create",
-                {"device_id": row.device_id, "metric_type": row.metric_type})
+    log_audit(db, user.user_id, "telemetry_recorded", "telemetry", sample.telemetry_id,
+              {"device_id": body.device_id}, request)
     db.commit()
-    db.refresh(row)
-    return row
+    # Alerts created by trg_telemetry_threshold_alert inside the same INSERT.
+    raised = db.scalars(select(Alert).where(Alert.telemetry_id == sample.telemetry_id)).all()
+    return {**telemetry_out(db.get(Telemetry, sample.telemetry_id)), "trigger_alerts": [alert_out(a) for a in raised]}
 
 
-@router.put("/{telemetry_id}", response_model=TelemetryOut, summary="Update a telemetry record")
-def update_telemetry(
-    telemetry_id: int,
-    payload: TelemetryUpdate,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin", "network_engineer")),
-):
-    row = _get_telemetry_or_404(db, telemetry_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(row, field, value)
-    write_audit(db, current_user.user_id, "telemetry", row.telemetry_id, "update",
-                {"fields": sorted(payload.model_dump(exclude_unset=True).keys())})
-    db.commit()
-    db.refresh(row)
-    return row
-
-
-@router.delete("/{telemetry_id}", status_code=status.HTTP_204_NO_CONTENT,
-               summary="Delete a telemetry record (admin only)")
-def delete_telemetry(
-    telemetry_id: int,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin")),
-):
-    row = _get_telemetry_or_404(db, telemetry_id)
-    write_audit(db, current_user.user_id, "telemetry", row.telemetry_id, "delete",
-                {"device_id": row.device_id, "metric_type": row.metric_type})
-    db.delete(row)
-    db.commit()
+@router.get("/stats")
+def telemetry_stats(device_id: Optional[int] = None, db: Session = Depends(get_db),
+                    user: User = Depends(require_roles(*ALL_ROLES))):
+    stmt = scope_to_assigned(select(func.count(), func.avg(Telemetry.cpu_util), func.avg(Telemetry.latency_ms),
+                                    func.avg(Telemetry.packet_loss_pct), func.max(Telemetry.recorded_at)),
+                             user, Telemetry.device_id)
+    if device_id:
+        stmt = stmt.where(Telemetry.device_id == device_id)
+    count, cpu, lat, loss, last = db.execute(stmt).one()
+    return {"samples": count, "avg_cpu": round(cpu or 0, 2), "avg_latency": round(lat or 0, 2),
+            "avg_loss": round(loss or 0, 3), "last_sample": last.isoformat() if last else None}
