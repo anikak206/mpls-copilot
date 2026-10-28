@@ -1,0 +1,157 @@
+erDiagram
+    roles {
+        INTEGER role_id PK
+        VARCHAR name UK
+        VARCHAR description
+    }
+    sites {
+        INTEGER site_id PK
+        VARCHAR name UK
+        VARCHAR region
+        VARCHAR address
+    }
+    users {
+        INTEGER user_id PK
+        INTEGER role_id FK
+        VARCHAR email UK
+        VARCHAR full_name
+        VARCHAR password_hash
+        BOOL is_active
+        DATETIME created_at
+        DATETIME last_login_at
+    }
+    audit_logs {
+        INTEGER audit_id PK
+        INTEGER user_id FK
+        VARCHAR action
+        VARCHAR entity_type
+        VARCHAR entity_id
+        TEXT details
+        VARCHAR ip_address
+        DATETIME created_at
+    }
+    devices {
+        INTEGER device_id PK
+        VARCHAR hostname UK
+        VARCHAR mgmt_ip UK
+        VARCHAR device_type
+        VARCHAR vendor
+        VARCHAR model
+        INTEGER site_id FK
+        INTEGER assigned_engineer_id FK
+        VARCHAR status
+        DATETIME created_at
+        DATETIME updated_at
+    }
+    revoked_tokens {
+        VARCHAR jti PK
+        INTEGER user_id FK
+        DATETIME expires_at
+        DATETIME revoked_at
+    }
+    incidents {
+        INTEGER incident_id PK
+        INTEGER device_id FK
+        VARCHAR title
+        TEXT description
+        VARCHAR severity
+        VARCHAR status
+        INTEGER opened_by FK
+        INTEGER assigned_to FK
+        DATETIME opened_at
+        DATETIME closed_at
+    }
+    telemetry {
+        INTEGER telemetry_id PK
+        INTEGER device_id FK
+        DATETIME recorded_at
+        FLOAT cpu_util
+        FLOAT mem_util
+        FLOAT latency_ms
+        FLOAT jitter_ms
+        FLOAT packet_loss_pct
+        FLOAT throughput_mbps
+        INTEGER crc_errors
+        INTEGER lsp_flaps
+        INTEGER bgp_flaps
+        VARCHAR source
+        INTEGER recorded_by FK
+    }
+    predictions {
+        INTEGER prediction_id PK
+        INTEGER telemetry_id FK
+        VARCHAR model_version
+        VARCHAR mode
+        VARCHAR label
+        FLOAT anomaly_score
+        FLOAT risk_score
+        VARCHAR risk_level
+        TEXT explanation
+        INTEGER requested_by FK
+        DATETIME created_at
+    }
+    alerts {
+        INTEGER alert_id PK
+        INTEGER device_id FK
+        INTEGER telemetry_id FK
+        INTEGER prediction_id FK
+        INTEGER incident_id FK
+        VARCHAR severity
+        VARCHAR source
+        VARCHAR message
+        VARCHAR status
+        INTEGER acknowledged_by FK
+        DATETIME created_at
+        DATETIME resolved_at
+    }
+    recommendations {
+        INTEGER recommendation_id PK
+        INTEGER prediction_id FK,UK
+        VARCHAR action_code
+        VARCHAR title
+        TEXT rationale
+        VARCHAR priority
+        DATETIME created_at
+    }
+    engineer_actions {
+        INTEGER action_id PK
+        INTEGER device_id FK
+        INTEGER recommendation_id FK
+        INTEGER incident_id FK
+        INTEGER engineer_id FK
+        VARCHAR action_type
+        TEXT description
+        DATETIME performed_at
+    }
+    outcomes {
+        INTEGER outcome_id PK
+        INTEGER action_id FK,UK
+        VARCHAR result
+        TEXT notes
+        INTEGER recorded_by FK
+        DATETIME recorded_at
+    }
+    roles ||--o{ users : "role_id"
+    users |o--o{ audit_logs : "user_id"
+    users |o--o{ devices : "assigned_engineer_id"
+    sites ||--o{ devices : "site_id"
+    users ||--o{ revoked_tokens : "user_id"
+    devices ||--o{ incidents : "device_id"
+    users |o--o{ incidents : "assigned_to"
+    users |o--o{ incidents : "opened_by"
+    users |o--o{ telemetry : "recorded_by"
+    devices ||--o{ telemetry : "device_id"
+    telemetry ||--o{ predictions : "telemetry_id"
+    users |o--o{ predictions : "requested_by"
+    incidents |o--o{ alerts : "incident_id"
+    devices ||--o{ alerts : "device_id"
+    predictions |o--o{ alerts : "prediction_id"
+    telemetry |o--o{ alerts : "telemetry_id"
+    users |o--o{ alerts : "acknowledged_by"
+    predictions ||--o| recommendations : "prediction_id"
+    devices ||--o{ engineer_actions : "device_id"
+    users ||--o{ engineer_actions : "engineer_id"
+    incidents |o--o{ engineer_actions : "incident_id"
+    recommendations |o--o{ engineer_actions : "recommendation_id"
+    engineer_actions ||--o| outcomes : "action_id"
+    users |o--o{ outcomes : "recorded_by"

@@ -1,14 +1,16 @@
+
 name: Backend CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, integrate-new-project]
   pull_request:
     branches: [main]
 
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: backend
@@ -27,5 +29,20 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests
+        env:
+          MYSQL_HOST: "127.0.0.1"
+          MYSQL_PORT: "3306"
+          MYSQL_USER: "test_user"
+          MYSQL_PASSWORD: "test_password"
+          MYSQL_DATABASE: "test_db"
+          JWT_SECRET: "ci-test-only-secret-not-for-production"
+          JWT_EXPIRE_MINUTES: "30"
+          CORS_ORIGINS: "http://localhost:3000"
+          ADMIN_EMAIL: "admin@example.test"
+          ADMIN_PASSWORD: "test-admin-password"
+          ENGINEER_EMAIL: "engineer@example.test"
+          ENGINEER_PASSWORD: "test-engineer-password"
+          AUDITOR_EMAIL: "auditor@example.test"
+          AUDITOR_PASSWORD: "test-auditor-password"
         run: |
           PYTHONPATH=. pytest -v

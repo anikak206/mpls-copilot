@@ -1,35 +1,35 @@
-# Python
+# --- Secrets / local config ---
+.env
+*.env
+!.env.example
+
+# --- Python ---
 __pycache__/
 *.py[cod]
-*.egg-info/
 .venv/
 venv/
 .pytest_cache/
+.mypy_cache/
+*.egg-info/
 
-# Env / secrets
-.env
-*.pem
-*.key
-
-# Node / frontend
+# --- Node ---
 node_modules/
+frontend/build/
+.yarn/*
+!.yarn/releases
+
+# --- Local databases / data / artifacts ---
+.mysql_data/
+*.sqlite3
+backups/*.sql
+ml/data/*.csv
+ml/models/unsw_model.joblib
 dist/
-build/
-.next/
 
-# AI/ML
-*.pkl
-*.joblib
-*.onnx
-*.h5
-ai-engine/data_prep/raw_data/
-ai-engine/models/checkpoints/
-
-# OS / editor
+# --- OS / editors ---
 .DS_Store
-Thumbs.db
-.vscode/
 .idea/
-
-# Logs
+.vscode/
 *.log
+frontend/node_modules/.cache/default-development/0.pack
+.mysql_data/ib_logfile0

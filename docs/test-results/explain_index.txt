@@ -1,0 +1,2 @@
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	telemetry	range	ix_telemetry_time,ix_telemetry_device_time	ix_telemetry_device_time	9	NULL	24	Using index condition
