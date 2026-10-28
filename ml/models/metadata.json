@@ -1,0 +1,31 @@
+{
+  "model_version": "iforest-synthetic-1.0",
+  "algorithm": "IsolationForest (n_estimators=300, max_samples=512), fitted on normal samples only",
+  "training_data": "Synthetic MPLS telemetry from ml/data/generator.py (seed=42)",
+  "training_normal_samples": 5600,
+  "features": [
+    "cpu_util",
+    "mem_util",
+    "latency_ms",
+    "jitter_ms",
+    "packet_loss_pct",
+    "throughput_mbps",
+    "crc_errors",
+    "lsp_flaps",
+    "bgp_flaps"
+  ],
+  "calibration": {
+    "threshold": 0.5883802249459774,
+    "median": 0.417765235136176,
+    "width": 0.05687166326993379
+  },
+  "label_rule": "risk>=60 anomalous; 40<=risk<60 uncertain; risk<40 normal",
+  "risk_levels": "low<25<=medium<50<=high<75<=critical",
+  "sklearn_version": "1.9.1",
+  "trained_at": "2026-10-19T19:20:29.176751+00:00",
+  "limitations": [
+    "Trained on synthetic data; it is a benchmark-style anomaly detector, not a validated MPLS failure predictor.",
+    "Risk score is a calibrated anomaly score, not a probability of failure.",
+    "Recommendations are advisory and must be reviewed by an engineer before action."
+  ]
+}

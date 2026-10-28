@@ -1,0 +1,44 @@
+@import "@fontsource/figtree/400.css";
+@import "@fontsource/figtree/500.css";
+@import "@fontsource/figtree/600.css";
+@import "@fontsource/figtree/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/600.css";
+
+:root {
+  --teal: #A8D1D1;
+  --teal-strong: #8FC1C1;
+  --teal-ink: #2F5F5F;
+  --aqua: #DFEBEB;
+  --white: #FFFFFF;
+  --grey: #F5F7F7;
+  --ink: #263238;
+  --muted: #667477;
+  --border: #D4E1E1;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgba(38, 50, 56, 0.06);
+  --ok-bg: #E3F2EA; --ok-ink: #22684A;
+  --warn-bg: #FFF3D6; --warn-ink: #7A5600;
+  --high-bg: #FDE6DA; --high-ink: #963F16;
+  --crit-bg: #FBE0E3; --crit-ink: #9C1C2A;
+  --info-bg: #E6EEF2; --info-ink: #3D5A66;
+  --font: "Figtree", "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--grey);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--teal); color: var(--ink); }
+a { color: var(--teal-ink); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+code, pre, .mono { font-family: var(--mono); }
