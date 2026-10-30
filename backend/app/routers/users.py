@@ -1,182 +1,97 @@
-"""User management — admin only. password_hash is never returned by any endpoint."""
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.audit import write_audit
-from app.core.database import get_db
-from app.core.security import hash_password
-from app.deps import require_role
+from app.database import get_db
 from app.models import Role, User
-from app.schemas import UserCreate, UserOut, UserUpdate
+from app.schemas import UserCreate, UserUpdate
+from app.security import ADMIN, ENGINEER, hash_password, require_roles
+from app.serializers import user_out
+from app.utils import PageParams, log_audit, paginate
+
+router = APIRouter(prefix="/api", tags=["Users & Roles"])
+admin_only = require_roles(ADMIN)
 
 
-router = APIRouter(prefix="/users", tags=["users"])
+def _role(db: Session, name: str) -> Role:
+    return db.scalar(select(Role).where(Role.name == name))
 
 
-def _get_user_or_404(db: Session, user_id: int) -> User:
-    user = db.query(User).filter(User.user_id == user_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-    return user
+@router.get("/roles")
+def list_roles(db: Session = Depends(get_db), _=Depends(admin_only)):
+    return [{"role_id": r.role_id, "name": r.name, "description": r.description}
+            for r in db.scalars(select(Role).order_by(Role.role_id))]
 
 
-def _check_role_exists(db: Session, role_id: int) -> None:
-    if not db.query(Role).filter(Role.role_id == role_id).first():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Role not found",
-        )
+@router.get("/users")
+def list_users(q: Optional[str] = None, role: Optional[str] = None, is_active: Optional[bool] = None,
+               params: PageParams = Depends(), db: Session = Depends(get_db), _=Depends(admin_only)):
+    stmt = select(User).join(Role).order_by(User.user_id)
+    if q:
+        stmt = stmt.where(or_(User.email.contains(q), User.full_name.contains(q)))
+    if role:
+        stmt = stmt.where(Role.name == role)
+    if is_active is not None:
+        stmt = stmt.where(User.is_active == is_active)
+    return paginate(db, stmt, params, user_out)
 
 
-@router.get("", response_model=list[UserOut], summary="List users (admin only)")
-def list_users(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    _user=Depends(require_role("admin")),
-):
-    return db.query(User).offset(skip).limit(limit).all()
+@router.get("/users/engineers")
+def list_engineers(db: Session = Depends(get_db), _=Depends(require_roles(ADMIN, ENGINEER))):
+    stmt = select(User).join(Role).where(Role.name == ENGINEER, User.is_active.is_(True)).order_by(User.full_name)
+    return [{"user_id": u.user_id, "full_name": u.full_name} for u in db.scalars(stmt)]
 
 
-@router.get("/{user_id}", response_model=UserOut, summary="Get one user (admin only)")
-def get_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    _user=Depends(require_role("admin")),
-):
-    return _get_user_or_404(db, user_id)
-
-
-@router.post(
-    "",
-    response_model=UserOut,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a user (admin only)",
-)
-def create_user(
-    payload: UserCreate,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin")),
-):
-    if db.query(User).filter(User.username == payload.username).first():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Username already exists",
-        )
-
-    _check_role_exists(db, payload.role_id)
-
-    user = User(
-        username=payload.username,
-        password_hash=hash_password(payload.password),
-        full_name=payload.full_name,
-        email=payload.email,
-        role_id=payload.role_id,
-    )
-
+@router.post("/users", status_code=201)
+def create_user(body: UserCreate, request: Request, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+    if db.scalar(select(User).where(User.email == body.email)):
+        raise HTTPException(409, "A user with this email already exists")
+    user = User(email=body.email, full_name=body.full_name, password_hash=hash_password(body.password),
+                role_id=_role(db, body.role).role_id)
     db.add(user)
     db.flush()
-
-    write_audit(
-        db,
-        current_user.user_id,
-        "user",
-        user.user_id,
-        "create",
-        {
-            "username": user.username,
-            "role_id": user.role_id,
-        },
-    )
-
+    log_audit(db, admin.user_id, "user_created", "user", user.user_id, {"email": user.email, "role": body.role}, request)
     db.commit()
     db.refresh(user)
+    return user_out(user)
 
-    return user
 
-
-@router.put(
-    "/{user_id}",
-    response_model=UserOut,
-    summary="Update a user (admin only)",
-)
-def update_user(
-    user_id: int,
-    payload: UserUpdate,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin")),
-):
-    user = _get_user_or_404(db, user_id)
-    data = payload.model_dump(exclude_unset=True)
-
-    new_password = data.pop("password", None)
-
-    if "role_id" in data:
-        _check_role_exists(db, data["role_id"])
-
-    for field, value in data.items():
-        setattr(user, field, value)
-
-    if new_password:
-        user.password_hash = hash_password(new_password)
-
-    write_audit(
-        db,
-        current_user.user_id,
-        "user",
-        user.user_id,
-        "update",
-        {
-            "fields": sorted(data.keys())
-            + (["password"] if new_password else [])
-        },
-    )
-
+@router.patch("/users/{user_id}")
+def update_user(user_id: int, body: UserUpdate, request: Request, db: Session = Depends(get_db),
+                admin: User = Depends(admin_only)):
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, "User not found")
+    if user.user_id == admin.user_id and (body.is_active is False or (body.role and body.role != ADMIN)):
+        raise HTTPException(400, "You cannot deactivate or demote your own account")
+    changes = body.model_dump(exclude_unset=True)
+    if "full_name" in changes:
+        user.full_name = body.full_name
+    if "password" in changes:
+        user.password_hash = hash_password(body.password)
+    if "role" in changes:
+        user.role_id = _role(db, body.role).role_id
+    if "is_active" in changes:
+        user.is_active = body.is_active
+    if "password" in changes:
+        changes["password"] = "changed"
+    log_audit(db, admin.user_id, "user_updated", "user", user_id, changes, request)
     db.commit()
     db.refresh(user)
+    return user_out(user)
 
-    return user
 
-
-@router.delete(
-    "/{user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a user (admin only)",
-)
-def delete_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin")),
-):
-    user = _get_user_or_404(db, user_id)
-
-    if user.user_id == current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete your own account",
-        )
-
-    write_audit(
-        db,
-        current_user.user_id,
-        "user",
-        user.user_id,
-        "delete",
-        {"username": user.username},
-    )
-
-    db.delete(user)
-
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User has related records and cannot be deleted",
-        )
+@router.delete("/users/{user_id}")
+def deactivate_user(user_id: int, request: Request, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+    """Users are soft-deleted (deactivated) so audit history and FK references stay intact."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, "User not found")
+    if user.user_id == admin.user_id:
+        raise HTTPException(400, "You cannot deactivate your own account")
+    user.is_active = False
+    log_audit(db, admin.user_id, "user_deactivated", "user", user_id, request=request)
+    db.commit()
+    return {"detail": "User deactivated"}
