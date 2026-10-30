@@ -1,0 +1,44 @@
+{
+  "summary": "I tested the frontend end to end with Playwright on the public URL at desktop (1920x1080) and mobile (390x844), logged in as all 3 roles. These work: login validation, logout with token revocation, role-based navigation and forbidden pages, dashboard, Devices CRUD, Telemetry filters and the trigger alert, Alerts actions, Incidents and their history, Predictions, Recommendations, Actions, Reports with CSV/PDF downloads, Database Lab, Audit logs, Users, and the mobile menu. I found 2 real UI layout bugs: (1) a CSS animation on .content traps every modal inside the content area, so the Close button of tall modals can't be clicked; (2) Database Lab overflows sideways on mobile. Separately, a manual fake-email check showed the 5-failure lockout returns 429, and logout makes /auth/me return 401.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/predictions/run (telemetry mode)", "issue": "Telemetry sample #578 (packet loss 6%, which raised a threshold-trigger alert) was scored label=normal, risk=16.1, recommendation CONTINUE_MONITORING, even though the explanation lists 'Packet loss high (6; deviation +51.6)'. The ML result contradicts the hard-threshold alert. Consider raising risk when any hard threshold is breached, or a rule floor for packet loss."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Modal (components/kit.js) + App.css .content", "issue": "Modals are not true full-viewport overlays. `.content { animation: rise .35s ease both }` keeps a transform animation applied (fill-mode both). In Chrome that makes .content the containing block and stacking context for the `position:fixed` .overlay. The overlay only covers the content area (mobile: y=59, height=1097 = content height; desktop: it stops where the page content ends). The sticky .topbar (z-index 20) paints over the modal. Effect: on Incidents with few rows, the incident detail modal's header and Close button sit under the topbar, and Playwright reports '<header class=topbar> intercepts pointer events' on incident-detail-modal-close. On mobile the modal runs past the viewport. Fix: use `animation-fill-mode: backwards` (or animate only opacity) on .content, or render Modal through a React portal to document.body.", "selector": "[data-testid='incident-detail-modal-close'], .overlay", "priority": "HIGH"},
+      {"component": "Database Lab (mobile 390px)", "issue": "Page overflows sideways: scrollWidth=1297px. Query cards (.card containing pre.sql and .tbl) inside .grid.grid-2 grow to 1281px because grid items default to min-width:auto. Fix: `.grid > * { min-width: 0 }` and `pre.sql { overflow-x: auto }`. Every other page tested at 390px had no overflow.", "selector": "[data-testid^='dblab-query-']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global toasts", "issues": ["Sonner toasts in the top-right corner cover the user name and the Sign out button in the topbar while visible. Consider bottom-right or an offset."]},
+      {"screen": "Dashboard", "issues": ["The 'up' legend item in the Device status chart is pastel #A8D1D1 text on white, which is low contrast.", "Trend chart x-axis labels are server UTC hours ('hour' field), while the rest of the app shows browser local time. This is inconsistent for non-UTC users.", "At 1920px, content is capped at max-width 1480px, leaving a large empty band on the right. Minor."]},
+      {"screen": "Users", "issues": ["The user status column reuses device pills ('up'/'down'). Should read Active/Disabled.", "Deactivate has no confirmation dialog, unlike device delete."]},
+      {"screen": "Actions > Outcome modal", "issues": ["The Outcome result select offers a 'Not yet known' (empty) option. Choosing it and submitting with notes would send result=''. Remove the placeholder in OutcomeForm or validate it."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "HIGH: Fix the modal containing-block / stacking bug. Change `.content` animation to fill-mode `backwards` (or opacity only), or portal Modal to document.body, so the overlay covers the full viewport above .topbar.",
+    "MEDIUM: Fix Database Lab horizontal overflow on mobile: add `.grid > * { min-width: 0 }` and `pre.sql { overflow-x: auto }`.",
+    "LOW: Show Users status as Active/Disabled, add a confirmation for Deactivate, and move toasts so they don't cover Sign out.",
+    "LOW: Review the ML scoring for high packet loss: a 6% loss sample is labelled normal (risk 16) while the trigger raised a critical alert."
+  ],
+  "critical_code_review_comments": [
+    "Modal is rendered inline instead of via a portal, so it inherits the transform and stacking context of ancestors (the root cause of the HIGH bug).",
+    "Devices.js and Incidents.js call useFetch('/sites') as a dummy fallback when the role can't load /users/engineers. This is a wasted request; use a conditional fetch (null url) instead.",
+    "downloadFile() calls URL.revokeObjectURL right after link.click(). This works in Chromium but can cancel the download in some browsers; defer it with setTimeout.",
+    "Recommendations: saving an action from the modal doesn't refresh anything or show linkage. OK, but there's no 'actioned' indicator per recommendation.",
+    "Auth uses a Bearer token in sessionStorage (no httpOnly cookie) and CORS has allow_credentials=False. This is consistent and works, but it deviates from the cookie-based playbook. Verified: bcrypt hashes start with $2b$; lockout returns 429 on the 6th attempt after 5 failures; logout revokes the token (/auth/me then returns 401)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend only as requested)", "frontend": "~92% - all functional flows pass; 2 layout bugs (modal overlay/close interception, DB Lab mobile overflow)"},
+  "test_credentials": "Used /app/memory/test_credentials.md (admin, engineer, auditor). All logins worked.",
+  "seed_data_creation": "Created during testing: device TEST-pe99 (created, edited, then deleted); telemetry #578 on ce1-cust-e (loss 6, trigger alert raised); predictions #38-#41; alert #20 acknowledged and resolved; alert #19 escalated to incident #4; incident #5 'TEST_incident from UI' (status investigating); transaction-demo incident #6; actions #3 (rec #40, outcome resolved) and #4 (TEST_ bounced interface, outcome improved); user test_user@mpls.local (role changed to Network Engineer, deactivated). Used fake email test_lockout_x@mpls.local for the lockout check.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All requested frontend flows were verified at desktop and mobile. Re-check: (1) the modal overlay covers the full viewport and the Close button of incident-detail-modal works on the Incidents page with few rows (at 1920x1080 and 390x844); (2) DB Lab at 390px has document scrollWidth == 390. Note: engineer@mpls.local is assigned 8 of 12 devices in the current DB (devices 1-8), not 10 as the review request says. The UI matches the DB. Sonner toasts stack, so read `[data-sonner-toast]` first() for the newest one.",
+  "rca of the issue": "Modal bug: App.css line 35 `.content { animation: rise .35s ease both }`, with keyframes on transform. With fill-mode `both`, the animation stays applied after it ends, so Chrome treats .content as having a transform. That makes it the containing block for fixed-position descendants and creates a stacking context. The `.overlay {position: fixed; inset: 0; z-index: 50}` therefore sizes to .content, not the viewport, and its z-index only applies inside .content. The sibling `.topbar {position: sticky; z-index: 20}` paints above it. To reproduce: log in, open Incidents, click a row; the modal head overlaps the topbar and clicking Close is intercepted by the header. Fix: fill-mode `backwards`, or portal the modal to body."
+}
