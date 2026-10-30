@@ -1,23 +1,23 @@
 # 20. Faculty Rubric Compliance Matrix
 
-Generated 2026-10-19. Marks are an evidence-based **estimate**; items only described in documentation are not awarded.
+Generated 2026-10-31. Marks are an evidence-based **estimate**; items only described in documentation are not awarded.
 
 | Category | Max | Estimated |
 |---|---|---|
-| 1. Problem Statement & Project Planning | 2 | 1.5 |
+| 1. Problem Statement & Project Planning | 2 | 2 |
 | 2. Database Design | 6 | 6 |
 | 3. Database Implementation | 8 | 8 |
 | 4. Application Development | 4 | 4 |
 | 5. Authentication, Authorization & Database Security | 5 | 5 |
-| 6. Professional Development Practices | 5 | 1.5 |
-| **Total** | **30** | **26.0** |
+| 6. Professional Development Practices | 5 | 2.5 |
+| **Total** | **30** | **28.0** |
 
-## 1. Problem Statement & Project Planning — 1.5/2
+## 1. Problem Statement & Project Planning — 2/2
 
 | Requirement | Implementation | Location | Test | Result | Status | Missing work |
 |---|---|---|---|---|---|---|
 | Project title, problem statement, objectives, scope | Written proposal | docs/01_project_proposal.md | Inspected | Present | PASS | — |
-| Team members & responsibilities | Editable template only | docs/01_project_proposal.md | Inspected | Placeholders | PARTIAL | Fill real names/IDs and tasks |
+| Team members & responsibilities | Aarohi Verma (24BDS0438) & Anika K (24BCE0245) with roles | docs/01_project_proposal.md | Inspected | Present | PASS | – |
 | Technology stack & deliverables | Table incl. documented CRA deviation | docs/01_project_proposal.md | Inspected | Present | PASS | — |
 | Gantt chart | Mermaid gantt + week table (template dates) | docs/01_project_proposal.md | Inspected | Present | PASS | Adjust dates to semester |
 
@@ -68,7 +68,7 @@ Generated 2026-10-19. Marks are an evidence-based **estimate**; items only descr
 | SQL injection prevention | ORM + bound parameters, whitelisted filters | app/reports.py | Code inspection | No string-built user SQL | PASS | — |
 | Secrets management | .env + .env.example + .gitignore | backend/.env (excluded), .env.example | Inspected ZIP | No secrets packaged | PASS | — |
 
-## 6. Professional Development Practices — 1.5/5
+## 6. Professional Development Practices — 2.5/5
 
 | Requirement | Implementation | Location | Test | Result | Status | Missing work |
 |---|---|---|---|---|---|---|

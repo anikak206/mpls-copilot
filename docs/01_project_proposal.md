@@ -18,14 +18,11 @@ Network administrators and engineers must monitor complex MPLS environments invo
 
 **Out of scope:** live SNMP/gNMI collection from real routers, automatic configuration push to devices, validated prediction of real MPLS hardware failures (no labelled MPLS failure dataset was available — see `ml_model_card.md`).
 
-## Team members and responsibilities (template — fill in)
-| Member | Student ID | Responsibilities | Status |
-|---|---|---|---|
-| [Name 1] | [ID] | Database design (ER, schema, normalization) | [ ] |
-| [Name 2] | [ID] | Backend API, authentication & RBAC | [ ] |
-| [Name 3] | [ID] | Frontend UI & reports | [ ] |
-| [Name 4] | [ID] | ML module, testing, documentation | [ ] |
-
+## Team members and responsibilities
+| Member | Student ID | Branch | Responsibilities | Status |
+|---|---|---|---|---|
+| Aarohi Verma | 24BDS0438 | main | Initial project scaffold, Database schema & ER design, Backend FastAPI routers, JWT Authentication & RBAC, GitHub Actions CI/CD | [x] |
+| Anika K | 24BCE0245 | main | Database procedures/triggers/views, ML anomaly-detection pipeline, React frontend dashboard, Docker Compose, Testing & Documentation | [x] |
 ## Technology stack
 | Layer | Technology | Notes |
 |---|---|---|
