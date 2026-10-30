@@ -1,279 +1,275 @@
--- MySQL dump 10.13  Distrib 8.0.46, for Win64 (x86_64)
---
--- Host: 127.0.0.1    Database: mpls_copilot
--- ------------------------------------------------------
--- Server version	8.0.46
-
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!50503 SET NAMES utf8 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Table structure for table `alerts`
---
-
-DROP TABLE IF EXISTS `alerts`;
+-- Air-Gapped Predictive Copilot for Secure MPLS Operations
+-- MySQL 8 / MariaDB 10.6+ schema (13 tables). Exported from the migrated database (Alembic 0001_baseline).
+-- Load order: schema.sql -> views.sql -> procedures.sql -> triggers.sql -> seed.sql
+SET FOREIGN_KEY_CHECKS = 0;
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `alerts` (
-  `alert_id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `device_id` int unsigned NOT NULL,
-  `alert_type` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `severity` enum('info','warning','critical') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'warning',
-  `message` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` enum('open','acknowledged','closed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
-  `triggered_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `resolved_at` timestamp NULL DEFAULT NULL,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `alerts` (
+  `alert_id` int(11) NOT NULL AUTO_INCREMENT,
+  `device_id` int(11) NOT NULL,
+  `telemetry_id` int(11) DEFAULT NULL,
+  `prediction_id` int(11) DEFAULT NULL,
+  `incident_id` int(11) DEFAULT NULL,
+  `severity` varchar(8) NOT NULL,
+  `source` varchar(7) NOT NULL,
+  `message` varchar(255) NOT NULL,
+  `status` varchar(12) NOT NULL DEFAULT 'open',
+  `acknowledged_by` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `resolved_at` datetime DEFAULT NULL,
   PRIMARY KEY (`alert_id`),
-  KEY `idx_alerts_device_status` (`device_id`,`status`),
-  KEY `idx_alerts_severity` (`severity`),
-  CONSTRAINT `fk_alerts_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `telemetry_id` (`telemetry_id`),
+  KEY `prediction_id` (`prediction_id`),
+  KEY `acknowledged_by` (`acknowledged_by`),
+  KEY `ix_alerts_created` (`created_at`),
+  KEY `ix_alerts_incident_id` (`incident_id`),
+  KEY `ix_alerts_device_status` (`device_id`,`status`),
+  CONSTRAINT `alerts_ibfk_1` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE,
+  CONSTRAINT `alerts_ibfk_2` FOREIGN KEY (`telemetry_id`) REFERENCES `telemetry` (`telemetry_id`) ON DELETE SET NULL,
+  CONSTRAINT `alerts_ibfk_3` FOREIGN KEY (`prediction_id`) REFERENCES `predictions` (`prediction_id`) ON DELETE SET NULL,
+  CONSTRAINT `alerts_ibfk_4` FOREIGN KEY (`incident_id`) REFERENCES `incidents` (`incident_id`) ON DELETE SET NULL,
+  CONSTRAINT `alerts_ibfk_5` FOREIGN KEY (`acknowledged_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `ck_alert_severity` CHECK (`severity` in ('info','warning','major','critical')),
+  CONSTRAINT `ck_alert_source` CHECK (`source` in ('trigger','ml','manual')),
+  CONSTRAINT `ck_alert_status` CHECK (`status` in ('open','acknowledged','resolved'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `audit_log`
---
-
-DROP TABLE IF EXISTS `audit_log`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `audit_log` (
-  `audit_id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `user_id` int unsigned DEFAULT NULL,
-  `entity_type` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `entity_id` bigint unsigned NOT NULL,
-  `action` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `details` json DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `audit_id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `action` varchar(60) NOT NULL,
+  `entity_type` varchar(40) NOT NULL,
+  `entity_id` varchar(120) DEFAULT NULL,
+  `details` text DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`audit_id`),
-  KEY `fk_audit_user` (`user_id`),
-  KEY `idx_audit_entity` (`entity_type`,`entity_id`),
-  KEY `idx_audit_created` (`created_at`),
-  CONSTRAINT `fk_audit_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `ix_audit_entity` (`entity_type`,`entity_id`),
+  KEY `ix_audit_action` (`action`),
+  KEY `ix_audit_logs_user_id` (`user_id`),
+  KEY `ix_audit_created` (`created_at`),
+  CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `devices`
---
-
-DROP TABLE IF EXISTS `devices`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `devices` (
-  `device_id` int unsigned NOT NULL AUTO_INCREMENT,
-  `hostname` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `vendor` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `model` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `mgmt_ip` varchar(45) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `device_role` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `site` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `devices` (
+  `device_id` int(11) NOT NULL AUTO_INCREMENT,
+  `hostname` varchar(64) NOT NULL,
+  `mgmt_ip` varchar(45) NOT NULL,
+  `device_type` varchar(4) NOT NULL,
+  `vendor` varchar(40) NOT NULL,
+  `model` varchar(60) NOT NULL,
+  `site_id` int(11) NOT NULL,
+  `assigned_engineer_id` int(11) DEFAULT NULL,
+  `status` varchar(12) NOT NULL DEFAULT 'up',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`device_id`),
   UNIQUE KEY `hostname` (`hostname`),
-  KEY `idx_devices_vendor` (`vendor`),
-  KEY `idx_devices_active` (`is_active`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `mgmt_ip` (`mgmt_ip`),
+  KEY `ix_devices_assigned_engineer_id` (`assigned_engineer_id`),
+  KEY `ix_devices_site_id` (`site_id`),
+  KEY `ix_devices_status` (`status`),
+  CONSTRAINT `devices_ibfk_1` FOREIGN KEY (`site_id`) REFERENCES `sites` (`site_id`),
+  CONSTRAINT `devices_ibfk_2` FOREIGN KEY (`assigned_engineer_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `ck_devices_type` CHECK (`device_type` in ('PE','P','CE','RR')),
+  CONSTRAINT `ck_devices_status` CHECK (`status` in ('up','degraded','down','maintenance'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `engineer_actions`
---
-
-DROP TABLE IF EXISTS `engineer_actions`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `engineer_actions` (
-  `action_id` int unsigned NOT NULL AUTO_INCREMENT,
-  `prediction_id` bigint unsigned NOT NULL,
-  `recommendation_id` int unsigned DEFAULT NULL,
-  `user_id` int unsigned NOT NULL,
-  `action_taken` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `action_notes` text COLLATE utf8mb4_unicode_ci,
-  `action_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `engineer_actions` (
+  `action_id` int(11) NOT NULL AUTO_INCREMENT,
+  `device_id` int(11) NOT NULL,
+  `recommendation_id` int(11) DEFAULT NULL,
+  `incident_id` int(11) DEFAULT NULL,
+  `engineer_id` int(11) NOT NULL,
+  `action_type` varchar(20) NOT NULL,
+  `description` text NOT NULL,
+  `performed_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`action_id`),
-  KEY `fk_actions_recommendation` (`recommendation_id`),
-  KEY `idx_actions_prediction` (`prediction_id`),
-  KEY `idx_actions_user` (`user_id`),
-  CONSTRAINT `fk_actions_prediction` FOREIGN KEY (`prediction_id`) REFERENCES `predictions` (`prediction_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_actions_recommendation` FOREIGN KEY (`recommendation_id`) REFERENCES `recommendations` (`recommendation_id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_actions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `engineer_id` (`engineer_id`),
+  KEY `ix_engineer_actions_device_id` (`device_id`),
+  KEY `ix_engineer_actions_recommendation_id` (`recommendation_id`),
+  KEY `ix_engineer_actions_incident_id` (`incident_id`),
+  CONSTRAINT `engineer_actions_ibfk_1` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE,
+  CONSTRAINT `engineer_actions_ibfk_2` FOREIGN KEY (`recommendation_id`) REFERENCES `recommendations` (`recommendation_id`) ON DELETE SET NULL,
+  CONSTRAINT `engineer_actions_ibfk_3` FOREIGN KEY (`incident_id`) REFERENCES `incidents` (`incident_id`) ON DELETE SET NULL,
+  CONSTRAINT `engineer_actions_ibfk_4` FOREIGN KEY (`engineer_id`) REFERENCES `users` (`user_id`),
+  CONSTRAINT `ck_action_type` CHECK (`action_type` in ('config_change','interface_reset','traffic_reroute','hardware_check','escalation','monitoring','other'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `incidents`
---
-
-DROP TABLE IF EXISTS `incidents`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `incidents` (
-  `incident_id` int unsigned NOT NULL AUTO_INCREMENT,
-  `device_id` int unsigned NOT NULL,
-  `alert_id` bigint unsigned DEFAULT NULL,
-  `title` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` text COLLATE utf8mb4_unicode_ci,
-  `status` enum('open','in_progress','resolved','closed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
-  `opened_by` int unsigned DEFAULT NULL,
-  `opened_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `closed_at` timestamp NULL DEFAULT NULL,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `incidents` (
+  `incident_id` int(11) NOT NULL AUTO_INCREMENT,
+  `device_id` int(11) NOT NULL,
+  `title` varchar(160) NOT NULL,
+  `description` text NOT NULL,
+  `severity` varchar(8) NOT NULL,
+  `status` varchar(13) NOT NULL DEFAULT 'open',
+  `opened_by` int(11) DEFAULT NULL,
+  `assigned_to` int(11) DEFAULT NULL,
+  `opened_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `closed_at` datetime DEFAULT NULL,
   PRIMARY KEY (`incident_id`),
-  KEY `fk_incidents_alert` (`alert_id`),
-  KEY `fk_incidents_opened_by` (`opened_by`),
-  KEY `idx_incidents_device_status` (`device_id`,`status`),
-  CONSTRAINT `fk_incidents_alert` FOREIGN KEY (`alert_id`) REFERENCES `alerts` (`alert_id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_incidents_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_incidents_opened_by` FOREIGN KEY (`opened_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `opened_by` (`opened_by`),
+  KEY `assigned_to` (`assigned_to`),
+  KEY `ix_incidents_device_id` (`device_id`),
+  KEY `ix_incidents_status` (`status`),
+  CONSTRAINT `incidents_ibfk_1` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE,
+  CONSTRAINT `incidents_ibfk_2` FOREIGN KEY (`opened_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `incidents_ibfk_3` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `ck_inc_severity` CHECK (`severity` in ('info','warning','major','critical')),
+  CONSTRAINT `ck_inc_status` CHECK (`status` in ('open','investigating','mitigated','closed'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `outcomes`
---
-
-DROP TABLE IF EXISTS `outcomes`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `outcomes` (
-  `outcome_id` int unsigned NOT NULL AUTO_INCREMENT,
-  `prediction_id` bigint unsigned NOT NULL,
-  `actual_result` enum('failure_occurred','no_failure','false_positive','unknown') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `outcome_notes` text COLLATE utf8mb4_unicode_ci,
-  `recorded_by` int unsigned DEFAULT NULL,
-  `recorded_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `outcomes` (
+  `outcome_id` int(11) NOT NULL AUTO_INCREMENT,
+  `action_id` int(11) NOT NULL,
+  `result` varchar(10) NOT NULL,
+  `notes` text NOT NULL,
+  `recorded_by` int(11) DEFAULT NULL,
+  `recorded_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`outcome_id`),
-  UNIQUE KEY `uq_outcomes_prediction` (`prediction_id`),
-  KEY `fk_outcomes_user` (`recorded_by`),
-  KEY `idx_outcomes_result` (`actual_result`),
-  CONSTRAINT `fk_outcomes_prediction` FOREIGN KEY (`prediction_id`) REFERENCES `predictions` (`prediction_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_outcomes_user` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `action_id` (`action_id`),
+  KEY `recorded_by` (`recorded_by`),
+  CONSTRAINT `outcomes_ibfk_1` FOREIGN KEY (`action_id`) REFERENCES `engineer_actions` (`action_id`) ON DELETE CASCADE,
+  CONSTRAINT `outcomes_ibfk_2` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `ck_outcome_result` CHECK (`result` in ('resolved','improved','no_change','worsened'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `predictions`
---
-
-DROP TABLE IF EXISTS `predictions`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `predictions` (
-  `prediction_id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `device_id` int unsigned NOT NULL,
-  `incident_id` int unsigned DEFAULT NULL,
-  `model_version` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `risk_score` decimal(5,4) NOT NULL,
-  `risk_level` enum('low','medium','high','critical') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `prediction_horizon` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `contributing_factors` json DEFAULT NULL,
-  `predicted_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `predictions` (
+  `prediction_id` int(11) NOT NULL AUTO_INCREMENT,
+  `telemetry_id` int(11) NOT NULL,
+  `model_version` varchar(40) NOT NULL,
+  `mode` varchar(5) NOT NULL,
+  `label` varchar(10) NOT NULL,
+  `anomaly_score` float NOT NULL,
+  `risk_score` float NOT NULL,
+  `risk_level` varchar(8) NOT NULL,
+  `explanation` text NOT NULL,
+  `requested_by` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`prediction_id`),
-  KEY `fk_predictions_incident` (`incident_id`),
-  KEY `idx_predictions_device_time` (`device_id`,`predicted_at`),
-  KEY `idx_predictions_risk_level` (`risk_level`),
-  CONSTRAINT `fk_predictions_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_predictions_incident` FOREIGN KEY (`incident_id`) REFERENCES `incidents` (`incident_id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `requested_by` (`requested_by`),
+  KEY `ix_predictions_created` (`created_at`),
+  KEY `ix_predictions_telemetry` (`telemetry_id`),
+  KEY `ix_predictions_level` (`risk_level`),
+  CONSTRAINT `predictions_ibfk_1` FOREIGN KEY (`telemetry_id`) REFERENCES `telemetry` (`telemetry_id`) ON DELETE CASCADE,
+  CONSTRAINT `predictions_ibfk_2` FOREIGN KEY (`requested_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `ck_pred_mode` CHECK (`mode` in ('model','demo')),
+  CONSTRAINT `ck_pred_label` CHECK (`label` in ('normal','anomalous','uncertain')),
+  CONSTRAINT `ck_pred_risk` CHECK (`risk_score` between 0 and 100),
+  CONSTRAINT `ck_pred_level` CHECK (`risk_level` in ('low','medium','high','critical'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `recommendations`
---
-
-DROP TABLE IF EXISTS `recommendations`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `recommendations` (
-  `recommendation_id` int unsigned NOT NULL AUTO_INCREMENT,
-  `prediction_id` bigint unsigned NOT NULL,
-  `recommendation_text` varchar(1000) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `priority` enum('low','medium','high') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'medium',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `recommendations` (
+  `recommendation_id` int(11) NOT NULL AUTO_INCREMENT,
+  `prediction_id` int(11) NOT NULL,
+  `action_code` varchar(40) NOT NULL,
+  `title` varchar(160) NOT NULL,
+  `rationale` text NOT NULL,
+  `priority` varchar(8) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`recommendation_id`),
-  KEY `idx_recommendations_prediction` (`prediction_id`),
-  CONSTRAINT `fk_recommendations_prediction` FOREIGN KEY (`prediction_id`) REFERENCES `predictions` (`prediction_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `prediction_id` (`prediction_id`),
+  CONSTRAINT `recommendations_ibfk_1` FOREIGN KEY (`prediction_id`) REFERENCES `predictions` (`prediction_id`) ON DELETE CASCADE,
+  CONSTRAINT `ck_rec_priority` CHECK (`priority` in ('low','medium','high','urgent'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `roles`
---
-
-DROP TABLE IF EXISTS `roles`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `roles` (
-  `role_id` int unsigned NOT NULL AUTO_INCREMENT,
-  `role_name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `revoked_tokens` (
+  `jti` varchar(36) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `revoked_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`jti`),
+  KEY `ix_revoked_tokens_user_id` (`user_id`),
+  CONSTRAINT `revoked_tokens_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `roles` (
+  `role_id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(40) NOT NULL,
+  `description` varchar(255) NOT NULL,
   PRIMARY KEY (`role_id`),
-  UNIQUE KEY `role_name` (`role_name`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `telemetry`
---
-
-DROP TABLE IF EXISTS `telemetry`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `telemetry` (
-  `telemetry_id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `device_id` int unsigned NOT NULL,
-  `metric_type` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `metric_value` decimal(12,4) NOT NULL,
-  `unit` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `collected_at` timestamp NOT NULL,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `sites` (
+  `site_id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(80) NOT NULL,
+  `region` varchar(80) NOT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`site_id`),
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `telemetry` (
+  `telemetry_id` int(11) NOT NULL AUTO_INCREMENT,
+  `device_id` int(11) NOT NULL,
+  `recorded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `cpu_util` float NOT NULL,
+  `mem_util` float NOT NULL,
+  `latency_ms` float NOT NULL,
+  `jitter_ms` float NOT NULL,
+  `packet_loss_pct` float NOT NULL,
+  `throughput_mbps` float NOT NULL,
+  `crc_errors` int(11) NOT NULL DEFAULT 0,
+  `lsp_flaps` int(11) NOT NULL DEFAULT 0,
+  `bgp_flaps` int(11) NOT NULL DEFAULT 0,
+  `source` varchar(10) NOT NULL DEFAULT 'collector',
+  `recorded_by` int(11) DEFAULT NULL,
   PRIMARY KEY (`telemetry_id`),
-  KEY `idx_telemetry_device_time` (`device_id`,`collected_at`),
-  KEY `idx_telemetry_metric_type` (`metric_type`),
-  CONSTRAINT `fk_telemetry_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `recorded_by` (`recorded_by`),
+  KEY `ix_telemetry_time` (`recorded_at`),
+  KEY `ix_telemetry_device_time` (`device_id`,`recorded_at`),
+  CONSTRAINT `telemetry_ibfk_1` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE,
+  CONSTRAINT `telemetry_ibfk_2` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `ck_tel_cpu` CHECK (`cpu_util` between 0 and 100),
+  CONSTRAINT `ck_tel_mem` CHECK (`mem_util` between 0 and 100),
+  CONSTRAINT `ck_tel_latency` CHECK (`latency_ms` >= 0 and `latency_ms` <= 10000),
+  CONSTRAINT `ck_tel_jitter` CHECK (`jitter_ms` >= 0 and `jitter_ms` <= 5000),
+  CONSTRAINT `ck_tel_loss` CHECK (`packet_loss_pct` between 0 and 100),
+  CONSTRAINT `ck_tel_throughput` CHECK (`throughput_mbps` >= 0),
+  CONSTRAINT `ck_tel_counters` CHECK (`crc_errors` >= 0 and `lsp_flaps` >= 0 and `bgp_flaps` >= 0),
+  CONSTRAINT `ck_tel_source` CHECK (`source` in ('manual','collector','seed'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `users`
---
-
-DROP TABLE IF EXISTS `users`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `users` (
-  `user_id` int unsigned NOT NULL AUTO_INCREMENT,
-  `username` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `full_name` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `email` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `role_id` int unsigned NOT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `last_login_at` timestamp NULL DEFAULT NULL,
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `users` (
+  `user_id` int(11) NOT NULL AUTO_INCREMENT,
+  `role_id` int(11) NOT NULL,
+  `email` varchar(120) NOT NULL,
+  `full_name` varchar(100) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `last_login_at` datetime DEFAULT NULL,
   PRIMARY KEY (`user_id`),
-  UNIQUE KEY `username` (`username`),
-  KEY `idx_users_role` (`role_id`),
-  CONSTRAINT `fk_users_role` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `email` (`email`),
+  KEY `ix_users_role_id` (`role_id`),
+  CONSTRAINT `users_ibfk_1` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`),
+  CONSTRAINT `ck_users_email_format` CHECK (`email` like '%_@_%')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
--- Dump completed on 2026-08-26 19:22:29
+SET FOREIGN_KEY_CHECKS = 1;
