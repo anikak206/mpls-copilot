@@ -22,6 +22,8 @@ class Settings:
     mysql_user = _required("MYSQL_USER")
     mysql_password = _required("MYSQL_PASSWORD")
     mysql_database = _required("MYSQL_DATABASE")
+    # Managed MySQL providers (Aiven, PlanetScale, ...) require TLS. Off by default for local Docker.
+    mysql_ssl = os.environ.get("MYSQL_SSL", "").lower() in ("1", "true", "yes")
     jwt_secret = _required("JWT_SECRET")
     jwt_expire_minutes = int(_required("JWT_EXPIRE_MINUTES"))
     cors_origins = [o.strip() for o in _required("CORS_ORIGINS").split(",")]

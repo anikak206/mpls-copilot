@@ -15,7 +15,10 @@ DATABASE_URL = URL.create(
     query={"charset": "utf8mb4"},
 )
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=1800)
+_connect_args = {"ssl": {"check_hostname": False}} if settings.mysql_ssl else {}
+
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=1800,
+                       connect_args=_connect_args)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

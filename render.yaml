@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: mpls-copilot-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DATABASE
+        sync: false
+      - key: MYSQL_SSL
+        value: "1"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRE_MINUTES
+        value: "60"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ADMIN_EMAIL
+        value: admin@mpls.local
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ENGINEER_EMAIL
+        value: engineer@mpls.local
+      - key: ENGINEER_PASSWORD
+        sync: false
+      - key: AUDITOR_EMAIL
+        value: auditor@mpls.local
+      - key: AUDITOR_PASSWORD
+        sync: false
